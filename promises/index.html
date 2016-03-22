@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Title</title>
+    <meta charset="utf-8">
+    <style>
+      @import url(https://fonts.googleapis.com/css?family=Yanone+Kaffeesatz);
+      @import url(https://fonts.googleapis.com/css?family=Droid+Serif:400,700,400italic);
+      @import url(https://fonts.googleapis.com/css?family=Ubuntu+Mono:400,700,400italic);
+
+      body { font-family: 'Droid Serif'; }
+      h1, h2, h3 {
+        font-family: 'Yanone Kaffeesatz';
+        font-weight: normal;
+      }
+
+      .double pre {
+        width: 50%;
+        float: left;
+      }
+
+      .smaller .remark-code {
+        font-size: 14px;
+      }
+      .remark-code, .remark-inline-code { font-family: 'Ubuntu Mono'; }
+    </style>
+  </head>
+  <body>
+    <textarea id="source">
+
+class: center, middle
+
+# Promises
+
+---
+
+# Promises are
+
+* async control flow lib/paradigm
+* less boilerplate, simpler code
+* centralized error handling
+* easy parallelization of async tasks
+* standartization of async tasks
+---
+
+# Promise A+ specification
+
+https://github.com/promises-aplus
+
+* specification
+* test suite
+* discussion
+
+---
+
+# Implementations
+
+* ES6 - basic, ecmascript standard
+* q.js
+* bluebird.js - recommended, fast
+* rsvp.js
+* etc
+
+---
+
+# The basics
+
+```javascript
+import Promise from 'bluebird';
+
+//create new promise
+const promise = new Promise(function(resolve, reject) {
+    setTimeout(function() {
+        if (Math.random() < 0.5) {
+            reject('you lose');
+        } else {
+            resolve('you win');
+        }
+    }, 1000);
+});
+
+// success handler
+promise.then(function(result) {
+    console.log('yay:', result); //yay: you win
+});
+
+// error handler
+promise.catch(function(error) {
+    console.error('oh no:', error); //oh no: you lose
+});
+
+```
+---
+
+# Promises are chainable
+
+```javascript
+getUser(id) //returns promise
+.then(function(user) {
+    return user.update(); //also returns promise 
+})
+.then(function(user) {
+    return user.sendEmail(); //also returns promise 
+});
+.then(function() {
+    console.log('user updated, email sent');
+});
+
+```
+---
+
+# So this...
+
+```javascript
+function handleErr(err) {
+    console.error(err);
+}
+
+doStuff1(function(err, result) {
+    if(err) return handleErr(err);
+    doStuff2(result, function(err, result2) {
+        if(err) return handleErr(err);
+        doStuff3(result2, function(err, result3) {
+            if(err) return handleErr(err);
+            doStuff4(result3, function(err, result4) {
+                if(err) return handleErr(err);
+                doStuff5(result5, function(err, result5) {
+                    if(err) return handleErr(err);
+                    console.log("that's deep bro");
+                });
+            });
+        });
+    }); 
+});
+
+```
+
+---
+
+# ...can become this
+
+```javascript
+
+doStuff1()
+.then(function(result) {
+    return doStuff2(result);
+})
+.then(function(result2) {
+    return doStuff3(result2);
+})
+.then(function(result3) {
+    return doStuff4(result3);
+})
+.then(function(result4) {
+    return doStuff5(result4);
+})
+.then(function(result5){
+    console.log('much better');
+})
+.catch(function(err) {
+    console.error(err); 
+});
+
+``` 
+---
+
+# Real world example
+.smaller[
+
+```javascript
+//Callbacks
+app.post('/documents/:id', function(req, res) {
+    function handleError(err) {
+        console.error(error);
+        res.send(500);
+    }
+
+    Document.getById(req.params.id, function(err, document) {
+        if (err) return handleError(err);
+        document.update(req.body, function(err, document) {
+            if (err) return handleError(err);
+            res.json(document.toJSON());
+        });
+    });
+});
+
+//Promises
+app.put('/documents/:id', function(req, res) {
+    Document.getById(req.params.id)
+    .then(function(document) {
+        return document.update(req.body);
+    })
+    .then(function(document){
+        res.json(document.toJSON());
+    })
+    .catch(function(error) {
+        console.error(error);
+        res.send(500);
+    });
+}));
+```
+]
+---
+
+# Any return val gets converted into a promise
+
+```javascript
+
+getUser(id)
+.then(function(user) {
+    //returns a promise that is
+    //automatically resolved with this value
+    return user.email; 
+})
+.then(function(email) {
+    console.log(`user's email is ${email}`); 
+});
+
+```
+---
+
+# That is useful when branching
+
+```javascript
+getUser(id)
+.then(function(user) {
+    if (needsUpdate(user, data) {
+        return user.update(data);
+    }
+    return user;
+})
+.then(function(user){
+    console.log(`user ${user.email} was perhaps udpated`);
+});
+
+```
+
+---
+
+# Or if you need to return some previous value
+
+```javascript
+getUser(id)
+.then(function(user) {
+    return user.sendEmail() //returns email status
+    .then(function(email_status) {
+        return user;  //pass user instead of email_status to next link
+    });
+})
+.then(function(user) {
+    return user.update(); 
+});
+```
+---
+
+# Any error or rejection skips to the next catch()
+
+```javascript
+getUser(id)
+.then(function(user) {
+    throw new Error('!EXPLODE!');
+})
+.then(function() {
+    console.log('impossible'); //this never happens
+})
+.catch(function(error) {
+   console.error(error); 
+});
+
+```
+---
+
+# These are equivalent
+
+```javascript
+//reject
+(new Promise(resolve, reject) {
+    reject(new Error('blam'));
+})
+.catch(function(err){
+    console.error(err.message); //blam
+});
+
+//throw
+(new Promise(resolve, reject) {
+    throw new Error('blam');
+})
+.catch(function(err){
+    console.error(err.message); //blam
+});
+
+Promise.reject('blam') //creates promise that's auto rejected
+.catch(function(err){
+    console.error(err.message); //blam
+});
+
+
+```
+
+---
+
+# catch() also returns a promise
+
+```javascript
+
+doRiskyStuff()
+.catch(function(err) {
+    console.error('risky stuff failed, no big deal');  
+})
+.then(function(){
+    finally(); // will happen anyway 
+});
+
+```
+---
+
+# catch() the catch()
+
+```javascript
+
+doRiskyStuff()
+.catch(function(err) {
+    return logErrorToBackend(err);
+})
+.catch(function(err) {
+    console.error('failed to log error, this is fubar');
+});
+
+```
+
+---
+
+# Execute tasks in parallel with all()
+
+```javascript
+import Promise from 'bluebird';
+
+Promise.all([ //array of promises
+    user.getAddress(),
+    user.getDocuments(),
+    saveSomeStuff()
+]).then(function(results) { //array with resutls from each promise
+    const address = results[0],
+          documents = results[1],
+          stuff = results[2];
+}).catch(function(err) { // called with first error to happen
+    console.error('oops', err); 
+});
+```
+---
+
+# spread() is same as then(), but unpacks result array
+
+```javascript
+Promise.resolve([1, 2, 3])
+.spread(function(a, b, c) {
+    console.log(a); // 1
+    console.log(b); // 2
+    console.log(c); // 3
+});
+
+```
+---
+
+# spread() useful with all()
+
+```javascript
+Promise.all([
+    user.getAddress(),
+    user.getDocuments(),
+    saveSomeStuff()
+]).spread(function(address, documents, stuff) { 
+    //uh. do stuff
+}).catch(function(err) {
+    console.error('oops', err); 
+});
+```
+---
+
+# join() nicer for fixed no of tasks
+
+```javascript
+Promise.join(user.getAddress(), user.getDocuments(), saveSomeStuff())
+.spread(function(address, documents, stuff) { 
+    //uh. do stuff
+}).catch(function(err) {
+    console.error('oops', err); 
+});
+```
+
+---
+
+# Dynamic array of tasks
+
+```javascript
+const document_ids = [1, 8, 5, 4, 9];
+
+Promise.all(document_ids.map(function(id) {
+   return Document.getById(id); 
+}))
+.then(function(documents) {
+    //success
+})
+.catch(function(error) {
+    //fail 
+});
+
+```
+---
+# Promise.map()
+
+```javascript
+const document_ids = [1, 8, 5, 4, 9];
+
+Promise.map(document_ids, function(id) {
+   return Document.getById(id); 
+})
+.then(function(documents) {
+    //success
+})
+.catch(function(error) {
+    //fail 
+});
+```
+
+---
+
+# Limit concurrency with map()
+
+```javascript
+import Promise from 'bluebird'; //this is a feature of bluebird!
+
+const emails = getEmailsToSend(); //list of emails to send
+
+Promise.map(emails, function(email) {
+    return email.send();
+}, {concurrency: 2}) //send max 2 emails at a time
+.then(function() {
+    // :) 
+})
+.catch(function(err) {
+    // :(   
+});
+
+```
+
+---
+
+# Resolve map of promises with props()
+
+```javascript
+
+Promise.props({
+    pictures: getPictures(),
+    comments: getComments(),
+    tweets: getTweets()
+})
+.then(function(result) {
+    console.log(result.tweets, result.pictures, result.comments);
+})
+.catch(function(err){
+    console.error(err); 
+});
+```
+
+---
+
+# tap()
+
+```javascript
+getUser()
+.tap(function(user) {
+    return user.sendEmail();
+})
+.then(function(user) { //result of getUser(), not sendEmail()
+    res.json(user.toJSON());  
+});
+
+```
+---
+# tap() is useful for logging
+
+```javascript
+doSomething()
+.then(...)
+.then(...)
+.tap(console.log)
+.then(...)
+.then(...)
+
+```
+---
+
+# promisify()
+
+```javascript
+function doStuff(id, cb) {
+    ...
+    if (error) cb(error, null);
+    else cb(null, result);
+}
+
+let doStuffAsync = Promise.promisify(doStuff);
+
+doStuffAsync(id)
+.then(function(result) {
+    
+})
+.catch(function(error) {
+    
+})
+
+```
+---
+
+# promisifyAll()
+
+```javascript
+//aliases all function props with [name]Async
+var fs = Promise.promisifyAll(require("fs"));
+
+fs.readFileAsync("myfile.js", "utf8")
+.then(function(contents) {
+    console.log(contents);
+}).catch(function(e) {
+    console.error(e.stack);
+});
+```
+
+---
+
+# try()
+
+```javascript
+Promise.try(function() {
+    if (Math.random() < 0.5) {
+        throw new Error('whoops'); //returns rejected promise
+    } 
+})
+.then(function() {
+    return doMoreStuff();
+})
+.catch(function(err) {
+    console.error(err);
+});
+``` 
+
+---
+
+# And tons of other useful utils
+
+http://bluebirdjs.com/docs/api-reference.html
+
+.any(), .some(), each(), race(), filter(), reduce(), finally(), ...
+
+---
+
+# Antipatterns
+
+---
+
+# Deferred antipattern
+
+```javascript
+
+function updateUser(id, data) {
+    let def = Q.defer();
+
+    User.getById(id)
+    .then(function(user) {
+        user.update(data)
+        .then(function(user) {
+            def.resolve();
+        });
+    });
+
+    return def.promise;
+}
+
+```
+---
+
+# Do this instead
+
+```javascript
+function updateUser(id, data) {
+    return User.getById(id)
+    .then(function(user) {
+        return user.update(data);
+    });
+}
+```
+---
+
+# .then(success, failure) antipattern
+
+```javascript
+doRiskyStuff()
+.then(function(result) {
+   throw new Error('oh snap');
+}, function(error) {
+    console.error(error); // will not be caught!
+});
+
+```
+---
+
+# always, always end a chain with catch()
+
+```javascript
+doRiskyStuff()
+.then(function(result) {
+    throw new Error('oh snap');
+})
+.catch(function(error) {
+    console.error(error.message); // oh snap 
+});
+
+```
+---
+
+# Some real world examples
+
+---
+
+.smaller[
+```javascript
+//util method to do finchley - > brixton api call
+exports.apicall = function(method, rel_url, data, user) {
+    const headers = {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+    };
+    if (user && user.auth_token) {
+        headers['Authorization'] = `Token ${user.auth_token}`;
+    }
+    return promise.join(
+        dbus.highgate.get_udid(),
+        dbus.highgate.get_keyboard_layout(),
+        dbus.highgate.get_postbox_url()
+    ).spread(function(udid, ansi_iso, url) {
+        headers['X-UDID'] = `${udid}`;
+        headers['X-KEYBOARD'] = `${ansi_iso}`;
+        console.log('brixton api call', url + rel_url);
+        return fetch(url + rel_url, {
+            method: method,
+            headers: headers,
+            body: JSON.stringify(data)
+        });
+    }).then(function(result) {
+        if (user && (result.status === 401 || result.status === 403)) {
+            return user.update({
+                auth_token: null
+            }).then(function() {
+                //emit update if user is of current session
+                return models.Session.get()
+                .then(function(session) {
+                    if (session && session.User.id === user.id) {
+                        session.emitUpdate();
+                        emitter.emit('token.revoked');
+                    }
+                    return result;
+                });
+            });
+        } 
+        return result;
+    });
+};
+```
+]
+
+---
+
+```javascript
+class NetworkManager {
+    //...
+
+    initialize() {
+        console.log('initializing network manager');
+        this.connectToNetworkManager()
+        .catch(error => {
+            console.log('unable to connect to network-manager, will try again later');
+            this.initializeLater();
+            return promise.reject(error);
+        })
+        .then(() => {
+            return promise.all([
+                this.initializeSettings(),
+                this.initializeSecretAgent()
+            ]);
+        })
+        .then(this.initializeWifiDevice.bind(this))
+        .then(this.emitAccessPoints.bind(this))
+        .catch(this.handleError.bind(this));
+    }
+}
+```
+
+
+
+    </textarea>
+    <script src="https://gnab.github.io/remark/downloads/remark-latest.min.js">
+    </script>
+    <script>
+        var slideshow = remark.create();
+    </script>
+  </body>
+</html>
